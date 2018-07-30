@@ -1,5 +1,5 @@
 /*
-	iTLS-Enso v1.0 by SKGleba
+	iTLS-Enso v1.5 by SKGleba
 	All Rights Reserved
 */
 
@@ -13,8 +13,8 @@
 #include <psp2/io/stat.h>
 #include "graphics.h"
 
-char mmit[][150] = {" -> Install 3.68 compat module"," -> Uninstall 3.68 compat module"," -> Exit"};
-int optct = 3;
+char mmit[][150] = {" -> Install 3.68 compat module"," -> Uninstall 3.68 compat module"," -> Install 3.68 root certs"," -> Exit"};
+int optct = 4;
 
 int sel = 0;
 int i;
@@ -52,10 +52,34 @@ int ex(const char *fname) {
     return 0;
 }
 
+int frcp(const char *from, const char *to) {
+if (ex(to) == 1) sceIoRemove(to);
+	long fsz;
+	FILE *fp = fopen(from,"rb");
+
+	fseek(fp, 0, SEEK_END);
+	fsz = ftell(fp);
+	rewind(fp);
+
+	char* fbuf = (char*) malloc(sizeof(char) * fsz);
+	fread(fbuf, sizeof(char), (size_t)fsz, fp);
+
+	FILE *pFile = fopen(to, "wb");
+	
+	for (int i = 0; i < fsz; ++i) {
+			fputc(fbuf[i], pFile);
+	}
+   
+	fclose(fp);
+	fclose(pFile);
+	return 1;
+}
+
+
 void smenu(){
 	psvDebugScreenClear(COLOR_BLACK);
 	psvDebugScreenSetFgColor(COLOR_CYAN);
-	psvDebugScreenPrintf("                       iTLS-Enso v1.0                            \n");
+	psvDebugScreenPrintf("                       iTLS-Enso v1.5                            \n");
 	psvDebugScreenPrintf("                         By SKGleba                              \n");
 		psvDebugScreenSetFgColor(COLOR_RED);
 	for(i = 0; i < optct; i++){
@@ -70,16 +94,16 @@ void smenu(){
 }
 
 int do_shit(){
-if (sel == 2) sceKernelExitProcess(0);
+if (sel == 3) sceKernelExitProcess(0);
 void *buf = malloc(0x100);
 vshIoUmount(0x300, 0, 0, 0);
 vshIoUmount(0x300, 1, 0, 0);
 _vshIoMount(0x300, 0, 2, buf);
 psvDebugScreenPrintf("Working...\n");
 if (ex("vs0:/data/external/webcore/cpt.o") == 0) fcp("vs0:/data/external/webcore/ScePsp2Compat.suprx", "vs0:/data/external/webcore/cpt.o");
-if (ex("vs0:/data/external/webcore/ScePsp2Compat.suprx") == 1) sceIoRemove("vs0:/data/external/webcore/ScePsp2Compat.suprx");
-if (sel == 0) fcp("app0:Media/00", "vs0:/data/external/webcore/ScePsp2Compat.suprx");
-if (sel == 1) fcp("vs0:/data/external/webcore/cpt.o", "vs0:/data/external/webcore/ScePsp2Compat.suprx");
+if (sel == 0) frcp("app0:Media/00", "vs0:/data/external/webcore/ScePsp2Compat.suprx");
+if (sel == 1) frcp("vs0:/data/external/webcore/cpt.o", "vs0:/data/external/webcore/ScePsp2Compat.suprx");
+if (sel == 2) frcp("app0:Media/01", "vs0:/data/external/cert/CA_LIST.cer");
 psvDebugScreenPrintf("Done\n");
 sceKernelDelayThread(1 * 1000 * 1000);sceKernelExitProcess(0);}
 int main()

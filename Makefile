@@ -14,6 +14,9 @@ all: $(TARGET).vpk
 %.vpk: eboot.bin
 	vita-mksfoex -s TITLE_ID=$(TITLE_ID) "iTLS-Enso" param.sfo
 	vita-pack-vpk -s param.sfo -b eboot.bin \
+    -a sce_sys/livearea/contents/bg.png=sce_sys/livearea/contents/bg.png \
+    -a sce_sys/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml \
+	-a pkg/Media/01=Media/01 \
 	-a pkg/Media/00=Media/00 \$@
 
 
