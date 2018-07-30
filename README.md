@@ -5,9 +5,10 @@ Adds TLS v1.2 to Enso enabled devices (temporary solution).
 
 1) Install the provided VPK file.
 
-2) Start the app, select "Install 3.68 compat module" and wait til it finishes
+2) Start the app, select "Install 3.68 compat module" and wait til it finishes.
+ - You may want to update CA certs, to do it open the app again and select "Install 3.68 root certs"
 
-3) Reboot
+3) Reboot.
 
 # Credits
 Thanks to:
