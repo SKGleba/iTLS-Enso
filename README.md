@@ -11,14 +11,17 @@ Adds TLS v1.2 to Enso enabled devices.
 3) Reboot.
 
 # Credits
+
 Thanks to:
 - dotsie.
 - Celeste.
 - @TakuyaKou.
 - noname120.
+- TheFlow
 - Beta testers from Vita Hacking and VitaMods discord servers.
 
 # FAQ
+
 - Can i use it without enso?
   - Yes, but you must enable homebrew before using the browser.
 - Will you make a plugin version?
@@ -27,5 +30,6 @@ Thanks to:
   - vs0:/data/external/cert/CA_LIST.cer
 
 # Notes
+
 - For any help/serious issue DM me on twitter (twitter.com/skgleba)
 - If you want to help me by donating: paypal.me/skgleba (^_^ thx)
