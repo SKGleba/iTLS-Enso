@@ -1,5 +1,5 @@
 /*
-	iTLS-Enso v1.75 by SKGleba
+	iTLS-Enso v2.0 by SKGleba
 	All Rights Reserved
 */
 
@@ -13,11 +13,9 @@
 #include <psp2/io/stat.h>
 #include "graphics.h"
 
-//char mmit[][200] = {" -> Install 3.68 compat module"," -> Uninstall 3.68 compat module"," -> Install 3.69 root certs"," -> Install/Uninstall the iTLS plugin"," -> Exit"};
-char mmit[][150] = {" -> Install 3.68 compat module"," -> Uninstall 3.68 compat module"," -> Install 3.69 root certs"," -> Exit"};
+char mmit[][200] = {" -> Install 3.68 compat module"," -> Uninstall 3.68 compat module"," -> Install 3.69 root certs"," -> Install/Uninstall the iTLS plugin"," -> Exit"};
 
-//int optct = 5;
-int optct = 4;
+int optct = 5;
 
 int sel = 0;
 int i;
@@ -59,7 +57,7 @@ int fcp(const char *from, const char *to, int rem) {
 void smenu(){
 	psvDebugScreenClear(COLOR_BLACK);
 	psvDebugScreenSetFgColor(COLOR_CYAN);
-	psvDebugScreenPrintf("                       iTLS-Enso 1.76                            \n");
+	psvDebugScreenPrintf("                       iTLS-Enso 2.0                            \n");
 	psvDebugScreenPrintf("                         By SKGleba                              \n");
 		psvDebugScreenSetFgColor(COLOR_RED);
 	for(i = 0; i < optct; i++){
@@ -74,8 +72,7 @@ void smenu(){
 }
 
 int do_shit(){
-//if (sel == 4) sceKernelExitProcess(0);
-if (sel == 3) sceKernelExitProcess(0);
+if (sel == 4) sceKernelExitProcess(0);
 void *buf = malloc(0x100);
 vshIoUmount(0x300, 0, 0, 0);
 vshIoUmount(0x300, 1, 0, 0);
@@ -85,19 +82,19 @@ if (ex("vs0:/data/external/webcore/cpt.o") == 0) fcp("vs0:/data/external/webcore
 if (sel == 0) fcp("app0:Media/00", "vs0:/data/external/webcore/ScePsp2Compat.suprx", 1);
 if (sel == 1) fcp("vs0:/data/external/webcore/cpt.o", "vs0:/data/external/webcore/ScePsp2Compat.suprx", 1);
 if (sel == 2) fcp("app0:Media/01", "vs0:/data/external/cert/CA_LIST.cer", 1);
-/*
 if (sel == 3) {
-int pex = ex("ur0:tai/itls.suprx");
-int mex = ex("ur0:tai/itls_compat.suprx");
+sceIoMkdir("ur0:itls/", 0777);
+int pex = ex("ur0:itls/itls.suprx");
+int mex = ex("ur0:itls/compat.suprx");
 	if (mex == 1 && pex == 1) {
-		sceIoRemove("ur0:tai/itls.suprx");
-		sceIoRemove("ur0:tai/itls_compat.suprx");
+		sceIoRemove("ur0:itls/itls.suprx");
+		sceIoRemove("ur0:itls/compat.suprx");
 	} else {
-		fcp("app0:Media/69", "ur0:tai/itls.suprx", 1);
-		fcp("app0:Media/00", "ur0:tai/itls_compat.suprx", 1);
+		fcp("app0:Media/69", "ur0:itls/itls.suprx", 1);
+		fcp("app0:Media/00", "ur0:itls/compat.suprx", 1);
 	}
 }
-*/
+
 psvDebugScreenPrintf("Done\n");
 sceKernelDelayThread(1 * 1000 * 1000);sceKernelExitProcess(0);}
 int main()
