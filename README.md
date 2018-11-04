@@ -1,7 +1,7 @@
 # iTLS-Enso
 Adds TLS v1.2 to Enso enabled devices.
 
-# How-To
+# How-To (perma version - requires enso)
 
 1) Install the provided VPK file.
 
@@ -9,6 +9,19 @@ Adds TLS v1.2 to Enso enabled devices.
    - You may want to update CA certs, to do it open the app again and select "Install 3.69 root certs"
 
 3) Reboot.
+
+# How-To (plugin version - requires ioplus v0.1 or higher)
+
+0) Make sure that you have ioplus by dots_tb installed (https://github.com/CelesteBlue-dev/PSVita-RE-tools/tree/master/ioPlus)
+
+1) Install the provided VPK file.
+
+2) In tai config.txt add "ur0:itls/itls.suprx" under \*ALL.
+
+3) Start the app, select "Install/Uninstall the iTLS plugin" and wait til it finishes.
+   - You may want to update CA certs, to do it open the app again and select "Install 3.69 root certs"
+
+4) Reboot.
 
 # Credits
 
@@ -24,12 +37,11 @@ Thanks to:
 
 - Can i use it without enso?
   - Yes, but you must enable homebrew before using the browser.
-- Will you make a plugin version?
-  - Yes, it will come in v2.0
 - Where can I find the CA certs?
   - vs0:/data/external/cert/CA_LIST.cer
 
 # Notes
 
+- Updating CA certs may fix some problems with web sites, apps (like netflix), etc.
 - For any help/serious issue DM me on twitter (twitter.com/skgleba)
 - If you want to help me by donating: paypal.me/skgleba (^_^ thx)
