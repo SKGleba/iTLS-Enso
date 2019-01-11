@@ -44,4 +44,3 @@ Thanks to:
 
 - Updating CA certs may fix some problems with web sites, apps (like netflix), etc.
 - For any help/serious issue DM me on twitter (twitter.com/skgleba)
-- If you want to help me by donating: paypal.me/skgleba (^_^ thx)
