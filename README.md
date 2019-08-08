@@ -23,6 +23,11 @@ Adds TLS v1.2 to Enso enabled devices.
 
 4) Reboot.
 
+# Build .vpk
+
+1) Run `./build.sh build`
+2) To clean the built files, run: `./build.sh clean`
+
 # Credits
 
 Thanks to:
