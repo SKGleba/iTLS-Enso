@@ -65,7 +65,7 @@ int fcp(const char *from, const char *to) {
 void smenu(){
 	psvDebugScreenClear(COLOR_BLACK);
 	psvDebugScreenSetFgColor(COLOR_CYAN);
-	psvDebugScreenPrintf("                       iTLS-Enso 3.0                            \n");
+	psvDebugScreenPrintf("                       iTLS-Enso 3.0.1                           \n");
 	psvDebugScreenPrintf("                         By SKGleba                              \n");
 	psvDebugScreenSetFgColor(COLOR_RED);
 	for(i = 0; i < optct; i++){
@@ -81,11 +81,6 @@ void smenu(){
 int work(int debug){
 	if (sel == 2)
 		sceKernelExitProcess(0);
-	if (ex("ur0:tai/0syscall6.skprx") == 0 && debug == 0) {
-		psvDebugScreenPrintf("WARNING: 0syscall6 is REQUIRED!\n");
-		sceKernelDelayThread(5 * 1000 * 1000);
-		sceKernelExitProcess(0);
-	}
 	void *buf = malloc(0x100);
 	vshIoUmount(0x300, 0, 0, 0);
 	vshIoUmount(0x300, 1, 0, 0);
