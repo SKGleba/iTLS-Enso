@@ -16,10 +16,12 @@ all: $(TARGET).vpk
 	vita-pack-vpk -s param.sfo -b eboot.bin \
     -a sce_sys/livearea/contents/bg.png=sce_sys/livearea/contents/bg.png \
     -a sce_sys/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml \
-	-a plugin/itls.suprx=Media/69 \
-	-a pkg/Media/01=Media/01 \
-	-a pkg/Media/00=Media/00 \$@
-
+	-a user/itls.suprx=user.suprx \
+	-a kernel/itls.skprx=kernel.skprx \
+	-a misc/compat.suprx=compat.suprx \
+	-a misc/lhttp.suprx=lhttp.suprx \
+	-a misc/lssl.suprx=lssl.suprx \
+	-a misc/certs.cer=certs.cer \$@
 
 eboot.bin: $(TARGET).velf
 	vita-make-fself -c $< $@
