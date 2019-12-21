@@ -5,8 +5,8 @@ Adds TLS v1.2 to devices with enso installed.
 
 1) Install the provided VPK file.
 
-2) Start the app, select "Install/Uninstall iTLS" and wait til it finishes.
-   - You may want to only install/uninstall the new root certs, to do it select "Install/Uninstall the latest CA certs"
+2) Start the app, select "Install the full iTLS package" and wait til it finishes.
+   - You may want to only install the new root certs, to do it select "Install the iTLS CA certs"
 
 3) Reboot.
 
@@ -18,10 +18,12 @@ Thanks to:
 
 # FAQ
 
-- Can i use it without enso?
+- Can I use it without enso?
   - Yes for browser-only patch, but it is strongly recommended to use enso.
 - Where can I find the CA certs?
   - vs0:/data/external/cert/CA_LIST.cer
+- How can I update the tool?
+  - Uninstall via the previous installer, install via the new one.
 
 # Notes
 - Since version 3.0 iTLS also patches apps-side TLS stuff.

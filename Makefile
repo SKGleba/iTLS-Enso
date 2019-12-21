@@ -16,7 +16,6 @@ all: $(TARGET).vpk
 	vita-pack-vpk -s param.sfo -b eboot.bin \
     -a sce_sys/livearea/contents/bg.png=sce_sys/livearea/contents/bg.png \
     -a sce_sys/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml \
-	-a user/itls.suprx=user.suprx \
 	-a kernel/itls.skprx=kernel.skprx \
 	-a misc/compat.suprx=compat.suprx \
 	-a misc/lhttp.suprx=lhttp.suprx \
