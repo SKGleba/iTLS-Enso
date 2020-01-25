@@ -52,12 +52,12 @@ void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args)
 {
 	char zero[1] = {0x30};
-	if (ex("vs0:/data/external/webcore/ScePsp2Compat.supr0") == 1) {
+	if (ex("vs0:/sys/external/libhttp.supr0") == 1) {
 		INJECT("SceSysmodule", 0x162c, zero, sizeof(zero));
 		INJECT("SceSysmodule", 0x163b, zero, sizeof(zero));
 		pmode = 1;
 	}
-	if (ex("vs0:/sys/external/libhttp.supr0") == 1) {
+	if (ex("vs0:/data/external/webcore/ScePsp2Compat.supr0") == 1) {
 		hk = taiHookFunctionExportForKernel(KERNEL_PID, &lum_hook, "SceKernelModulemgr", TAI_ANY_LIBRARY, 0x60647592, lum_patch);
 		pmode = pmode + 0x10;
 	}
