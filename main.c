@@ -37,11 +37,9 @@ int ex(const char *fname) {
     return 0;
 }
 
-int riex(const char *fname) {
-	int ret = ex(fname);
-    if (ret == 1)
+void riex(const char *fname) {
+	if (ex(fname))
     	sceIoRemove(fname);
-    return ret;
 }
 
 int fap(const char *from, const char *to) {
@@ -118,6 +116,7 @@ void installPlugin(int ior) {
 			printf("Installing the iTLS plugin... \n");
 			fcp("app0:kernel.skprx", "ur0:tai/itls.skprx");
 			riex("ux0:tai/config_preitls.txt");
+			riex("ur0:tai/config_preitls.txt");
 			installPluginC();
 		}
 	}
@@ -139,11 +138,11 @@ void installCompat(int ior) {
 void installDnsFix(int ior) {
 	if (cfg[3] == ior || ior == 69) {
 		if (cfg[3]) {
-			printf("Installing the 3.60 DNS fix... \n");
+			printf("Removing the 3.60 DNS fix... \n");
 			riex("vs0:/data/external/itls/old_dns_fix.suprx");
 			riex("vs0:/data/external/itls/np_commerce2.suprx");
 		} else {
-			printf("Removing the 3.60 DNS fix... \n");
+			printf("Installing the 3.60 DNS fix... \n");
 			fcp("app0:dnsfix.suprx", "vs0:/data/external/itls/old_dns_fix.suprx");
 			fcp("app0:comm2.suprx", "vs0:/data/external/itls/np_commerce2.suprx");
 		}
@@ -193,6 +192,7 @@ int work(){
 	vshIoUmount(0x300, 0, 0, 0);
 	vshIoUmount(0x300, 1, 0, 0);
 	_vshIoMount(0x300, 0, 2, buf);
+	sceIoMkdir("vs0:/data/external/itls/", 0777);
 	printf("Working...\n");
 	switch(sel) {
 		case 0:
