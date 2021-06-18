@@ -14,12 +14,15 @@ all: $(TARGET).vpk
 %.vpk: eboot.bin
 	vita-mksfoex -s TITLE_ID=$(TITLE_ID) "iTLS-Enso" param.sfo
 	vita-pack-vpk -s param.sfo -b eboot.bin \
+	-a sce_sys/icon0.png=sce_sys/icon0.png \
     -a sce_sys/livearea/contents/bg.png=sce_sys/livearea/contents/bg.png \
     -a sce_sys/livearea/contents/template.xml=sce_sys/livearea/contents/template.xml \
 	-a kernel/itls.skprx=kernel.skprx \
+	-a old_dns_fix/old_dns_fix.suprx=dnsfix.suprx \
 	-a misc/compat.suprx=compat.suprx \
 	-a misc/lhttp.suprx=lhttp.suprx \
 	-a misc/lssl.suprx=lssl.suprx \
+	-a misc/comm2.suprx=comm2.suprx \
 	-a misc/certs.cer=certs.cer \$@
 
 eboot.bin: $(TARGET).velf

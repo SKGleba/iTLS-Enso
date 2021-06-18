@@ -28,6 +28,9 @@ target_link_libraries(itls.elf
 	taihenForKernel_stub
 	SceSysmemForDriver_stub
 	SceIofilemgrForDriver_stub
+	SceDebugForDriver_stub
+	SceModulemgrForDriver_stub
+	SceSysrootForDriver_stub
 )
 
 set_target_properties(itls.elf
