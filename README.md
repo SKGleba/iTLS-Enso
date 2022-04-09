@@ -14,6 +14,8 @@ Adds TLS v1.2 to devices with enso installed.
   - Yes for the browser patch only.
 - Where can I find the CA certs?
   - vs0:/data/external/cert/CA_LIST.cer
+- Can I delete the bubble after iTLS is installed?
+  - yes, the un/installer is independent of the plugin
 
 # Notes
 - Since version 3.0 iTLS also patches app-side TLS stuff.
