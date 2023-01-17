@@ -69,7 +69,7 @@ int fcp(const char *from, const char *to) {
 void smenu(){
 	psvDebugScreenClear(COLOR_BLACK);
 	psvDebugScreenSetFgColor(COLOR_CYAN);
-	printf("                        iTLS-Enso 3.2                            \n");
+	printf("                       iTLS-Enso 3.2.1                           \n");
 	printf("                         By SKGleba                              \n");
 	psvDebugScreenSetFgColor(COLOR_RED);
 	for(i = 0; i < optct; i++){
@@ -189,6 +189,7 @@ int work(){
 	if (sel == 5)
 		sceKernelExitProcess(0);
 	void *buf = malloc(0x100);
+	memset(buf, 0, 0x100);
 	vshIoUmount(0x300, 0, 0, 0);
 	vshIoUmount(0x300, 1, 0, 0);
 	_vshIoMount(0x300, 0, 2, buf);

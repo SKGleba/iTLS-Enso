@@ -20,16 +20,17 @@ Adds TLS v1.2 to devices with enso installed.
 # Notes
 - Since version 3.0 iTLS also patches app-side TLS stuff.
 - Since version 3.2 iTLS also patches the NP server link on firmware 3.60.
+- Since version 3.2.1 iTLS bundles external CA certs because SCE didnt update theirs.
 - Updating CA certs may fix some problems with web sites, apps (like netflix), etc.
 - For any help/serious issue DM me on twitter (twitter.com/skgleba)
-
-### Donation
-- Via [ko-fi](https://ko-fi.com/skgleba), thanks!
 
 # Credits
 Thanks to:
 - Team Molecule
 - Testers from the HenKaku discord server
 - Cuevavirus for the 3.60 np server fix
+- CreepNT for the vshIoMount fix
+- olokos for the new external cert bundle
 
 ## CURRENT MODULES ORIGIN FW: 3.73
+## CURRENT CAs ORIGIN FW: 3.74 + external
