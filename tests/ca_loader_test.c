@@ -33,7 +33,17 @@ int main(int argc, char **argv) {
         ERR_clear_error();
         certificate = PEM_read_bio_X509_AUX(bio, NULL, NULL, NULL);
         if (certificate == NULL) {
-            if (BIO_eof(bio)) {
+            unsigned long error = ERR_peek_last_error();
+            int clean_eof = BIO_eof(bio)
+                && (
+                    error == 0
+                    || (
+                        ERR_GET_LIB(error) == ERR_LIB_PEM
+                        && ERR_GET_REASON(error) == PEM_R_NO_START_LINE
+                    )
+                );
+
+            if (clean_eof) {
                 ERR_clear_error();
                 break;
             }

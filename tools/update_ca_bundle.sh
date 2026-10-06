@@ -3,7 +3,15 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/itls-cacert.XXXXXX")
-trap 'rm -rf "$temporary_directory"' EXIT HUP INT TERM
+mozilla_stage="$root/misc/.mozilla_cacert.pem.itls-new.$$"
+bundle_stage="$root/misc/.certs.cer.itls-new.$$"
+
+cleanup() {
+    rm -rf "$temporary_directory"
+    rm -f "$mozilla_stage" "$bundle_stage"
+}
+
+trap cleanup EXIT HUP INT TERM
 cd "$root"
 
 mozilla_source="$temporary_directory/mozilla_cacert.pem"
@@ -21,8 +29,12 @@ ITLS_MOZILLA_SOURCE="$mozilla_source" \
 ITLS_CA_BUNDLE="$generated_bundle" \
     python3 -m unittest -v tests.test_update_ca_bundle
 
-mv "$mozilla_source" "$root/misc/mozilla_cacert.pem"
-mv "$generated_bundle" "$root/misc/certs.cer"
+rm -f "$mozilla_stage" "$bundle_stage"
+cp "$mozilla_source" "$mozilla_stage"
+cp "$generated_bundle" "$bundle_stage"
+chmod 0644 "$mozilla_stage" "$bundle_stage"
+mv "$mozilla_stage" "$root/misc/mozilla_cacert.pem"
+mv "$bundle_stage" "$root/misc/certs.cer"
 
 python3 "$root/tools/update_ca_bundle.py" \
     --sony "$root/misc/sony_certs.cer" \

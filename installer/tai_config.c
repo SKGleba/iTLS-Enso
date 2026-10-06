@@ -7,8 +7,31 @@ static const char config_block[] =
     "# ITLS\n"
     "*KERNEL\n"
     "ur0:tai/itls.skprx\n\n";
+static const char config_block_crlf[] =
+    "# ITLS\r\n"
+    "*KERNEL\r\n"
+    "ur0:tai/itls.skprx\r\n\r\n";
 static const char config_marker[] = "# ITLS";
 static const char config_plugin[] = "ur0:tai/itls.skprx";
+static const char legacy_config_plugin[] = "ur0:tai/itls.suprx";
+
+static size_t canonical_block_size(
+    const unsigned char *input,
+    size_t input_size
+) {
+    size_t lf_size = sizeof(config_block) - 1;
+    size_t crlf_size = sizeof(config_block_crlf) - 1;
+
+    if (input_size >= lf_size && memcmp(input, config_block, lf_size) == 0)
+        return lf_size;
+    if (
+        input_size >= crlf_size
+        && memcmp(input, config_block_crlf, crlf_size) == 0
+    ) {
+        return crlf_size;
+    }
+    return 0;
+}
 
 static int line_equals(
     const unsigned char *line,
@@ -55,14 +78,22 @@ int itls_build_tai_config(
 
     while (input_offset < input_size) {
         const unsigned char *line = input + input_offset;
+        size_t remaining_size = input_size - input_offset;
+        size_t block_to_skip = canonical_block_size(line, remaining_size);
         const unsigned char *newline = memchr(line, '\n', input_size - input_offset);
         size_t line_size = newline == NULL
             ? input_size - input_offset
             : (size_t)(newline - line) + 1;
 
+        if (block_to_skip != 0) {
+            input_offset += block_to_skip;
+            continue;
+        }
+
         if (
             !line_equals(line, line_size, config_marker)
             && !line_equals(line, line_size, config_plugin)
+            && !line_equals(line, line_size, legacy_config_plugin)
         ) {
             memcpy(output + output_offset, line, line_size);
             output_offset += line_size;

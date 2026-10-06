@@ -2,10 +2,13 @@ import hashlib
 import os
 import pathlib
 import re
+import stat
+import tempfile
 import unittest
 
 from tools.update_ca_bundle import (
     BundleError,
+    _write_atomic,
     build_bundle,
     generate_bundle_bytes,
     parse_certificates,
@@ -38,9 +41,51 @@ def repository_fixture_certificates(count: int) -> list[bytes]:
 
 
 class UpdateCaBundleTests(unittest.TestCase):
+    def test_atomic_write_uses_public_default_and_preserves_existing_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            output = pathlib.Path(directory) / "bundle.pem"
+
+            _write_atomic(output, b"first")
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o644)
+
+            output.chmod(0o640)
+            _write_atomic(output, b"second")
+            self.assertEqual(stat.S_IMODE(output.stat().st_mode), 0o640)
+            self.assertEqual(output.read_bytes(), b"second")
+
+    def test_parse_rejects_empty_source(self) -> None:
+        with self.assertRaisesRegex(BundleError, "no certificates"):
+            parse_certificates("empty", b"# no certificates here\n")
+
+    def test_parse_rejects_non_utf8_source(self) -> None:
+        with self.assertRaisesRegex(BundleError, "not UTF-8"):
+            parse_certificates("non-ascii", b"# \xff\n")
+
+    def test_parse_rejects_non_ascii_pem(self) -> None:
+        with self.assertRaisesRegex(BundleError, "invalid certificate"):
+            parse_certificates(
+                "non-ascii-pem",
+                "-----BEGIN CERTIFICATE-----\nÅAAA\n"
+                "-----END CERTIFICATE-----\n".encode("utf-8"),
+            )
+
     def test_parse_rejects_unbalanced_markers(self) -> None:
         with self.assertRaisesRegex(BundleError, "unbalanced"):
             parse_certificates("broken", b"-----BEGIN CERTIFICATE-----\nAAAA\n")
+
+    def test_parse_rejects_non_base64_characters(self) -> None:
+        with self.assertRaisesRegex(BundleError, "invalid certificate"):
+            parse_certificates(
+                "bad-base64",
+                b"-----BEGIN CERTIFICATE-----\nAAAA*\n-----END CERTIFICATE-----\n",
+            )
+
+    def test_parse_rejects_invalid_der(self) -> None:
+        with self.assertRaisesRegex(BundleError, "invalid certificate"):
+            parse_certificates(
+                "bad-der",
+                b"-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n",
+            )
 
     def test_build_bundle_preserves_first_occurrence_and_source_order(self) -> None:
         first, second = repository_fixture_certificates(2)
@@ -103,6 +148,32 @@ class UpdateCaBundleTests(unittest.TestCase):
 
         self.assertIn(hashlib.sha256(first).hexdigest().encode("ascii"), rendered)
         self.assertIn(hashlib.sha256(second).hexdigest().encode("ascii"), rendered)
+
+    def test_rendered_header_records_mozilla_certificate_date(self) -> None:
+        first = repository_fixture_certificates(1)[0]
+        source = (
+            b"## Certificate data from Mozilla as of: Tue Oct 06 03:12:01 2026 GMT\n"
+            + first
+        )
+
+        rendered = generate_bundle_bytes((("Mozilla/curl", source),))
+
+        self.assertIn(
+            b"##   Certificate data date: Tue Oct 06 03:12:01 2026 GMT\n",
+            rendered,
+        )
+
+    def test_build_rejects_non_ascii_mozilla_certificate_date(self) -> None:
+        first = repository_fixture_certificates(1)[0]
+        source = (
+            "## Certificate data from Mozilla as of: 6 octobre 2026 Å\n".encode(
+                "utf-8"
+            )
+            + first
+        )
+
+        with self.assertRaisesRegex(BundleError, "date is not ASCII"):
+            build_bundle((("Mozilla/curl", source),))
 
 
 if __name__ == "__main__":

@@ -1,5 +1,5 @@
 /*
-	iTLS-Enso v3.2 by SKGleba
+	iTLS-Enso v3.3 by SKGleba
 	All Rights Reserved
 */
 
@@ -11,33 +11,49 @@
 
 #include "path_rewrite.h"
 
-static const char *const new_modules[5] = {
+static const char *const new_modules[ITLS_REPLACEMENT_MODULE_COUNT] = {
 	"vs0:/data/external/itls/ScePsp2Compat.suprx",
 	"vs0:/data/external/itls/libhttp.suprx",
 	"vs0:/data/external/itls/libssl.suprx",
 	"vs0:/data/external/itls/old_dns_fix.suprx",
 	"vs0:/data/external/itls/np_commerce2.suprx"
 };
-static char replace[5] = {0, 0, 0, 0, 0};
 static ItlsReplacementState replacement_state;
 static int dns_fix_pending = 0;
-	
-int add_replace_flags(void) {
+
+static int add_replace_flags(void) {
+	int available[ITLS_REPLACEMENT_MODULE_COUNT] = {0};
+	SceKernelFwInfo firmware;
 	SceIoStat stat;
+	int firmware_result;
 	int i;
 
-	for (i = 0; i < 5; i++) {
+	for (i = 0; i < ITLS_REPLACEMENT_MODULE_COUNT; i++) {
+		memset(&stat, 0, sizeof(stat));
 		if (ksceIoGetstat(new_modules[i], &stat) >= 0)
-			replace[i] = 1;
+			available[i] = 1;
 	}
 
-	replacement_state.browser = replace[0];
-	replacement_state.app_tls = replace[1] && replace[2];
-	replacement_state.commerce = replace[3] && replace[4];
+	memset(&firmware, 0, sizeof(firmware));
+	firmware.size = sizeof(firmware);
+	firmware_result = ksceKernelGetSystemSwVersion(&firmware);
+	if (firmware_result < 0) {
+		ksceDebugPrintf(
+			"itls firmware query failed: 0x%08X\n",
+			firmware_result
+		);
+		firmware.version = 0;
+	}
+
+	replacement_state = itls_build_replacement_state(
+		available,
+		firmware.version
+	);
 	dns_fix_pending = replacement_state.commerce;
 
 	ksceDebugPrintf(
-		"itls replacements: browser=%d app_tls=%d commerce=%d\n",
+		"itls firmware=0x%08X replacements: browser=%d app_tls=%d commerce=%d\n",
+		firmware.version,
 		replacement_state.browser,
 		replacement_state.app_tls,
 		replacement_state.commerce

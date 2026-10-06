@@ -5,11 +5,13 @@ PREFIX := arm-vita-eabi
 CC := $(PREFIX)-gcc
 HOST_CC ?= cc
 PYTHON ?= python3
+PYTHON_SOURCES := $(wildcard tools/*.py tests/*.py)
 
 APP_OBJS := main.o font.o graphics.o installer/ca_bundle.o \
 	installer/file_transaction.o installer/tai_config.o
+APP_DEPS := $(APP_OBJS:.o=.d)
 APP_LIBS := -lSceCtrl_stub -lSceDisplay_stub -lScePower_stub -lSceVshBridge_stub
-CFLAGS := -std=gnu99 -Wall -Wextra -O3
+CFLAGS := -std=gnu99 -Wall -Wextra -O3 -MMD -MP
 LDFLAGS := -Wl,-q
 
 BUILD_DIR := build
@@ -29,10 +31,14 @@ HOST_PATH_REWRITE := $(HOST_TEST_DIR)/test_kernel_path_rewrite
 HOST_FILE_TRANSACTION := $(HOST_TEST_DIR)/test_file_transaction
 HOST_TAI_CONFIG := $(HOST_TEST_DIR)/test_tai_config
 HOST_CA_BUNDLE := $(HOST_TEST_DIR)/test_ca_bundle_transaction
+HOST_INSTALLER_FILESYSTEM := $(HOST_TEST_DIR)/test_installer_filesystem
 
-.PHONY: all clean clean-host-tests host-tests python-tests check-certs update-certs test
+.PHONY: all clean clean-host-tests host-tests python-tests ca-loader-tests \
+	static-checks check-certs update-certs test
 
 all: $(TARGET).vpk
+
+-include $(APP_DEPS)
 
 $(TARGET).vpk: eboot.bin $(KERNEL_MODULE) $(DNS_MODULE) $(CA_BUNDLE) \
 		misc/compat.suprx misc/lhttp.suprx misc/lssl.suprx misc/comm2.suprx \
@@ -107,15 +113,32 @@ $(HOST_CA_BUNDLE): tests/test_ca_bundle_transaction.c \
 		tests/test_ca_bundle_transaction.c installer/ca_bundle.c \
 		installer/file_transaction.c -o $@
 
+$(HOST_INSTALLER_FILESYSTEM): tests/test_installer_filesystem.c \
+		installer/ca_bundle.c installer/ca_bundle.h \
+		installer/file_transaction.c installer/file_transaction.h | $(HOST_TEST_DIR)
+	$(HOST_CC) -std=c99 -Wall -Wextra -Werror \
+		tests/test_installer_filesystem.c installer/ca_bundle.c \
+		installer/file_transaction.c -o $@
+
 python-tests:
 	$(PYTHON) -m unittest -v tests.test_update_ca_bundle
 
-host-tests: python-tests $(HOST_CA_LOADER) $(HOST_PATH_REWRITE) \
-		$(HOST_FILE_TRANSACTION) $(HOST_TAI_CONFIG) $(HOST_CA_BUNDLE)
+static-checks:
+	$(PYTHON) -m py_compile $(PYTHON_SOURCES)
+	sh -n tools/update_ca_bundle.sh
+
+ca-loader-tests: $(HOST_CA_LOADER)
+	ITLS_CA_LOADER=$(abspath $(HOST_CA_LOADER)) \
+		$(PYTHON) -m unittest -v tests.test_ca_loader
+
+host-tests: python-tests ca-loader-tests $(HOST_PATH_REWRITE) \
+		$(HOST_FILE_TRANSACTION) $(HOST_TAI_CONFIG) $(HOST_CA_BUNDLE) \
+		$(HOST_INSTALLER_FILESYSTEM)
 	$(HOST_PATH_REWRITE)
 	$(HOST_FILE_TRANSACTION)
 	$(HOST_TAI_CONFIG)
 	$(HOST_CA_BUNDLE)
+	$(HOST_INSTALLER_FILESYSTEM)
 
 check-certs: $(HOST_CA_LOADER)
 	$(PYTHON) $(CA_GENERATOR) \
@@ -128,11 +151,11 @@ check-certs: $(HOST_CA_LOADER)
 update-certs:
 	tools/update_ca_bundle.sh
 
-test: host-tests check-certs
+test: static-checks host-tests check-certs
 
 clean-host-tests:
 	rm -rf $(HOST_TEST_DIR)
 
 clean:
 	rm -rf $(TARGET).vpk $(TARGET).velf $(TARGET).elf eboot.bin param.sfo \
-		$(APP_OBJS) $(KERNEL_BUILD_DIR) $(DNS_BUILD_DIR) $(HOST_TEST_DIR)
+		$(APP_OBJS) $(APP_DEPS) $(KERNEL_BUILD_DIR) $(DNS_BUILD_DIR) $(HOST_TEST_DIR)

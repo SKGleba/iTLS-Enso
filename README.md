@@ -45,7 +45,7 @@ make -j2
 
 The top-level build compiles the application, kernel plugin, and 3.60 DNS compatibility plugin before packaging `iTLS-Enso.vpk`.
 
-Host validation requires Python 3, a C compiler, `pkg-config`, and OpenSSL development headers:
+Host validation requires Python 3.10 or newer, a C compiler, `pkg-config`, and OpenSSL development headers:
 
 ```sh
 make test
@@ -82,7 +82,7 @@ The refresh script downloads from curl with `curl -q`, validates the candidate b
 
 ### Can I use it without Enso?
 
-Yes, for the browser compatibility module only.
+The installer and CA-bundle action can run without Enso. Persistent browser and app-module replacement requires the kernel redirection plugin to load during boot, so those replacements require Enso or an equivalent persistent taiHEN setup.
 
 ### Where is the active CA bundle?
 
@@ -94,12 +94,35 @@ vs0:/data/external/cert/CA_LIST.cer
 
 Yes. The installed modules and CA bundle are independent of the installer application. Keep the VPK available if you expect to update or remove components later.
 
+## Troubleshooting
+
+Reinstalling the VPK is not evidence that the active files were updated. Export the installed files with VitaShell and compare their SHA-256 hashes with the corresponding VPK payloads:
+
+| VPK payload | Installed path |
+|---|---|
+| `kernel.skprx` | `ur0:tai/itls.skprx` |
+| `compat.suprx` | `vs0:/data/external/itls/ScePsp2Compat.suprx` |
+| `lhttp.suprx` | `vs0:/data/external/itls/libhttp.suprx` |
+| `lssl.suprx` | `vs0:/data/external/itls/libssl.suprx` |
+| `certs.cer` | `vs0:/data/external/cert/CA_LIST.cer` |
+
+The kernel log reports the detected firmware, available replacement sets, and every module path redirect. A working browser replacement should produce messages resembling:
+
+```text
+itls module loaded
+itls firmware=0x03600000 replacements: browser=1 app_tls=1 commerce=1
+itls redirect: .../webcore/ScePsp2Compat.suprx -> vs0:/data/external/itls/ScePsp2Compat.suprx
+```
+
+For an unresolved HTTPS failure, capture the Vita's TLS ClientHello at the access point. TLS 1.0 or 1.1 indicates that the browser replacement is not active. TLS 1.2 without an expected ECDHE-ECDSA AES-GCM suite indicates that a different TLS module is running. A client alert after the server certificate shifts the investigation to certificate ingestion, the system clock, or TLS interception by the network. Retest with a correct clock and a non-intercepting network before changing the CA bundle again.
+
 ## Notes
 
 - Since version 3.0, iTLS also replaces app-side TLS modules.
 - Since version 3.2, iTLS patches the NP server hostname on firmware 3.60.
 - Since version 3.2.1, iTLS includes external CA roots because Sony stopped updating the system bundle.
 - Version 3.3 makes CA generation duplicate-free, adds loader-accurate validation, and makes installation/update/removal explicit and transactional.
+- Version 3.3 also removes obsolete direct `.supr0` overrides and the legacy `ur0:tai/itls.suprx` entry during migration.
 - Current replacement modules originate from firmware 3.73.
 - The preserved Sony CA prefix originates from firmware 3.74-era system data; external roots come from the pinned Mozilla/curl bundle.
 

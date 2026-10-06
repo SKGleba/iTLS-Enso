@@ -4,6 +4,9 @@
 /iTLS-Enso.vpk
 /eboot.bin
 /param.sfo
+/misc/.certs.cer.itls-new.*
+/misc/.mozilla_cacert.pem.itls-new.*
 *.o
+*.d
 __pycache__/
 *.pyc

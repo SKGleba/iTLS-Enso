@@ -138,6 +138,21 @@ static void test_update_keeps_original_backup(void) {
     assert(file_system.rollback == 0);
 }
 
+static void test_interrupted_first_install_keeps_backup_and_activates_update(void) {
+    FakeFileSystem file_system = {2, 0, 1, 0, 0, NULL, NULL, NULL};
+    ItlsFileOps operations = fake_ops(&file_system);
+    ItlsReplaceResult result = itls_install_ca_bundle(
+        &operations, SOURCE, ACTIVE, BACKUP, TEMPORARY, ROLLBACK
+    );
+
+    assert(result.error == 0);
+    assert(result.cleanup_error == 0);
+    assert(file_system.active == 2);
+    assert(file_system.backup == 1);
+    assert(file_system.temporary == 0);
+    assert(file_system.rollback == 0);
+}
+
 static void test_first_install_requires_an_original_bundle(void) {
     FakeFileSystem file_system = {2, 0, 0, 0, 0, NULL, NULL, NULL};
     ItlsFileOps operations = fake_ops(&file_system);
@@ -181,24 +196,54 @@ static void test_restore_activates_original_and_removes_backup(void) {
 }
 
 static void test_restore_without_backup_is_idempotent(void) {
-    FakeFileSystem file_system = {3, 2, 0, 0, 0, NULL, NULL, NULL};
+    FakeFileSystem file_system = {3, 2, 0, 3, 4, NULL, NULL, NULL};
     ItlsFileOps operations = fake_ops(&file_system);
     ItlsReplaceResult result = itls_restore_ca_bundle(
         &operations, ACTIVE, BACKUP, TEMPORARY, ROLLBACK
     );
 
     assert(result.error == 0);
+    assert(result.cleanup_error == 0);
     assert(file_system.active == 2);
+    assert(file_system.backup == 0);
+    assert(file_system.temporary == 0);
+    assert(file_system.rollback == 0);
+}
+
+static void test_restore_without_backup_or_active_reports_missing_original(void) {
+    FakeFileSystem file_system = {3, 0, 0, 0, 0, NULL, NULL, NULL};
+    ItlsFileOps operations = fake_ops(&file_system);
+    ItlsReplaceResult result = itls_restore_ca_bundle(
+        &operations, ACTIVE, BACKUP, TEMPORARY, ROLLBACK
+    );
+
+    assert(result.error == ITLS_CA_ERROR_MISSING_ORIGINAL);
+    assert(result.cleanup_error == 0);
+}
+
+static void test_restore_recovers_when_active_is_missing(void) {
+    FakeFileSystem file_system = {3, 0, 1, 0, 0, NULL, NULL, NULL};
+    ItlsFileOps operations = fake_ops(&file_system);
+    ItlsReplaceResult result = itls_restore_ca_bundle(
+        &operations, ACTIVE, BACKUP, TEMPORARY, ROLLBACK
+    );
+
+    assert(result.error == 0);
+    assert(result.cleanup_error == 0);
+    assert(file_system.active == 1);
     assert(file_system.backup == 0);
 }
 
 int main(void) {
     test_first_install_preserves_original_bundle();
     test_update_keeps_original_backup();
+    test_interrupted_first_install_keeps_backup_and_activates_update();
     test_first_install_requires_an_original_bundle();
     test_first_install_activation_failure_restores_original();
     test_restore_activates_original_and_removes_backup();
     test_restore_without_backup_is_idempotent();
+    test_restore_without_backup_or_active_reports_missing_original();
+    test_restore_recovers_when_active_is_missing();
     puts("CA bundle transaction tests passed");
     return 0;
 }

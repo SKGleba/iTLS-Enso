@@ -46,11 +46,32 @@ static void test_enable_removes_existing_marker_and_plugin_line(void) {
     );
 }
 
+static void test_enable_is_idempotent_for_the_canonical_block(void) {
+    assert_config(
+        "# ITLS\n*KERNEL\nur0:tai/itls.skprx\n\n"
+        "*KERNEL\nur0:tai/other.skprx\n",
+        1,
+        "# ITLS\n*KERNEL\nur0:tai/itls.skprx\n\n"
+        "*KERNEL\nur0:tai/other.skprx\n"
+    );
+}
+
+static void test_enable_removes_legacy_user_plugin_entry(void) {
+    assert_config(
+        "# ITLS\n*KERNEL\nur0:tai/itls.skprx\n"
+        "*ALL\nur0:tai/itls.suprx\n"
+        "*main\nux0:tai/plugin.suprx\n",
+        1,
+        "# ITLS\n*KERNEL\nur0:tai/itls.skprx\n\n"
+        "*KERNEL\n*ALL\n*main\nux0:tai/plugin.suprx\n"
+    );
+}
+
 static void test_disable_removes_itls_lines_and_preserves_other_content(void) {
     assert_config(
         "# ITLS\n*KERNEL\nur0:tai/itls.skprx\n\n*main\nux0:tai/plugin.suprx\n",
         0,
-        "*KERNEL\n\n*main\nux0:tai/plugin.suprx\n"
+        "*main\nux0:tai/plugin.suprx\n"
     );
 }
 
@@ -84,6 +105,8 @@ static void test_invalid_arguments_are_rejected(void) {
 int main(void) {
     test_enable_prepends_one_canonical_block();
     test_enable_removes_existing_marker_and_plugin_line();
+    test_enable_is_idempotent_for_the_canonical_block();
+    test_enable_removes_legacy_user_plugin_entry();
     test_disable_removes_itls_lines_and_preserves_other_content();
     test_disable_handles_final_line_without_newline();
     test_invalid_arguments_are_rejected();

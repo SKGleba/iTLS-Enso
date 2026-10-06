@@ -36,6 +36,7 @@
 #define TAI_CONFIG_TEMP "ur0:tai/config.txt.itls-new"
 #define TAI_CONFIG_ROLLBACK "ur0:tai/config.txt.itls-rollback"
 #define KERNEL_PLUGIN_PATH "ur0:tai/itls.skprx"
+#define LEGACY_USER_PLUGIN_PATH "ur0:tai/itls.suprx"
 #define BROWSER_MODULE_PATH ITLS_DIRECTORY "/ScePsp2Compat.suprx"
 #define LIBHTTP_MODULE_PATH ITLS_DIRECTORY "/libhttp.suprx"
 #define LIBSSL_MODULE_PATH ITLS_DIRECTORY "/libssl.suprx"
@@ -44,6 +45,7 @@
 #define LEGACY_BROWSER_MODULE_PATH \
     "vs0:/data/external/webcore/ScePsp2Compat.supr0"
 #define LEGACY_LIBHTTP_MODULE_PATH "vs0:sys/external/libhttp.supr0"
+#define LEGACY_LIBSSL_MODULE_PATH "vs0:sys/external/libssl.supr0"
 #define CA_ACTIVE_PATH "vs0:/data/external/cert/CA_LIST.cer"
 #define CA_BACKUP_PATH "vs0:/data/external/cert/CA_LIST.cer_old"
 #define CA_TEMP_PATH "vs0:/data/external/cert/CA_LIST.cer.itls-new"
@@ -454,8 +456,26 @@ static int replace_payload(
 }
 
 static int remove_payload(const char *stage, const char *destination) {
+    char temporary[256];
+    char rollback[256];
+    int result;
+
     set_stage(stage);
-    return remove_if_present(destination);
+    result = remove_if_present(destination);
+    if (result < 0)
+        return result;
+
+    result = make_side_path(temporary, sizeof(temporary), destination, ".itls-new");
+    if (result < 0)
+        return result;
+    result = make_side_path(rollback, sizeof(rollback), destination, ".itls-rollback");
+    if (result < 0)
+        return result;
+
+    result = remove_if_present(temporary);
+    if (result < 0)
+        return result;
+    return remove_if_present(rollback);
 }
 
 static int ensure_directory(const char *path) {
@@ -481,17 +501,12 @@ static int ensure_directory(const char *path) {
 
 static int mount_vs0_rw(void) {
     unsigned char mount_buffer[0x100];
-    int result;
 
     memset(mount_buffer, 0, sizeof(mount_buffer));
     vshIoUmount(0x300, 0, 0, 0);
     vshIoUmount(0x300, 1, 0, 0);
 
-    result = _vshIoMount(0x300, 0, 2, mount_buffer);
-    if (result < 0)
-        return result;
-
-    return ensure_directory(ITLS_DIRECTORY);
+    return _vshIoMount(0x300, 0, 2, mount_buffer);
 }
 
 static int get_firmware_version(uint32_t *version) {
@@ -518,28 +533,36 @@ static int install_kernel_plugin(void) {
     );
     if (result < 0)
         return result;
-    return update_tai_config(1);
+
+    result = update_tai_config(1);
+    if (result < 0)
+        return result;
+    return remove_payload("remove legacy user plugin", LEGACY_USER_PLUGIN_PATH);
 }
 
 static int remove_kernel_plugin(void) {
     int result = update_tai_config(0);
     if (result < 0)
         return result;
-    return remove_payload("remove kernel plugin", KERNEL_PLUGIN_PATH);
+
+    result = remove_payload("remove kernel plugin", KERNEL_PLUGIN_PATH);
+    if (result < 0)
+        return result;
+    return remove_payload("remove legacy user plugin", LEGACY_USER_PLUGIN_PATH);
 }
 
 static int install_browser_module(void) {
-    int result = remove_payload(
-        "remove legacy browser override",
-        LEGACY_BROWSER_MODULE_PATH
+    int result = replace_payload(
+        "install browser compatibility module",
+        APP_BROWSER_MODULE,
+        BROWSER_MODULE_PATH
     );
     if (result < 0)
         return result;
 
-    return replace_payload(
-        "install browser compatibility module",
-        APP_BROWSER_MODULE,
-        BROWSER_MODULE_PATH
+    return remove_payload(
+        "remove legacy browser override",
+        LEGACY_BROWSER_MODULE_PATH
     );
 }
 
@@ -562,13 +585,6 @@ static int install_app_tls_modules(void) {
 
     set_stage("query firmware version");
     result = get_firmware_version(&version);
-    if (result < 0)
-        return result;
-
-    result = remove_payload(
-        "remove legacy libhttp override",
-        LEGACY_LIBHTTP_MODULE_PATH
-    );
     if (result < 0)
         return result;
 
@@ -602,9 +618,33 @@ static int install_app_tls_modules(void) {
             APP_COMMERCE_MODULE,
             COMMERCE_MODULE_PATH
         );
+    } else {
+        result = remove_payload(
+            "remove stale 3.60 DNS fix",
+            DNS_FIX_MODULE_PATH
+        );
+        if (result < 0)
+            return result;
+
+        result = remove_payload(
+            "remove stale 3.60 commerce module",
+            COMMERCE_MODULE_PATH
+        );
     }
 
-    return result;
+    if (result < 0)
+        return result;
+
+    result = remove_payload(
+        "remove legacy libhttp override",
+        LEGACY_LIBHTTP_MODULE_PATH
+    );
+    if (result < 0)
+        return result;
+    return remove_payload(
+        "remove legacy libssl override",
+        LEGACY_LIBSSL_MODULE_PATH
+    );
 }
 
 static int remove_app_tls_modules(void) {
@@ -622,9 +662,15 @@ static int remove_app_tls_modules(void) {
     result = remove_payload("remove 3.60 commerce module", COMMERCE_MODULE_PATH);
     if (result < 0)
         return result;
-    return remove_payload(
+    result = remove_payload(
         "remove legacy libhttp override",
         LEGACY_LIBHTTP_MODULE_PATH
+    );
+    if (result < 0)
+        return result;
+    return remove_payload(
+        "remove legacy libssl override",
+        LEGACY_LIBSSL_MODULE_PATH
     );
 }
 
@@ -693,6 +739,12 @@ static int action_requires_vs0(MenuAction action) {
         && action != ACTION_EXIT;
 }
 
+static int action_requires_itls_directory(MenuAction action) {
+    return action == ACTION_INSTALL_FULL
+        || action == ACTION_INSTALL_BROWSER
+        || action == ACTION_INSTALL_APP_TLS;
+}
+
 static int execute_action(MenuAction action) {
     int result;
 
@@ -702,6 +754,13 @@ static int execute_action(MenuAction action) {
     if (action_requires_vs0(action)) {
         set_stage("mount vs0 read/write");
         result = mount_vs0_rw();
+        if (result < 0)
+            return result;
+    }
+
+    if (action_requires_itls_directory(action)) {
+        set_stage("create iTLS module directory");
+        result = ensure_directory(ITLS_DIRECTORY);
         if (result < 0)
             return result;
     }
@@ -728,8 +787,9 @@ static int execute_action(MenuAction action) {
         case ACTION_REMOVE_FULL:
             return remove_full_package();
         case ACTION_EXIT:
-        case ACTION_COUNT:
             return 0;
+        case ACTION_COUNT:
+            break;
     }
 
     return ITLS_ERROR_INVALID_CONFIG;

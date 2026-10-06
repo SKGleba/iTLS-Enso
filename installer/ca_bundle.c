@@ -135,7 +135,9 @@ ItlsReplaceResult itls_restore_ca_bundle(
     const char *rollback
 ) {
     ItlsReplaceResult result;
+    int active_exists;
     int backup_exists;
+    int cleanup_error = 0;
     int cleanup_status;
 
     if (
@@ -151,8 +153,23 @@ ItlsReplaceResult itls_restore_ca_bundle(
     backup_exists = operations->exists(operations->context, backup);
     if (backup_exists < 0)
         return make_result(backup_exists, 0);
-    if (!backup_exists)
-        return make_result(0, 0);
+    if (!backup_exists) {
+        active_exists = operations->exists(operations->context, active);
+        if (active_exists < 0)
+            return make_result(active_exists, 0);
+        if (!active_exists)
+            return make_result(ITLS_CA_ERROR_MISSING_ORIGINAL, 0);
+
+        cleanup_error = record_cleanup_error(
+            cleanup_error,
+            remove_if_present(operations, temporary)
+        );
+        cleanup_error = record_cleanup_error(
+            cleanup_error,
+            remove_if_present(operations, rollback)
+        );
+        return make_result(0, cleanup_error);
+    }
 
     result = itls_transactional_replace(
         operations,
