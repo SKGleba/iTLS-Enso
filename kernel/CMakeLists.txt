@@ -18,6 +18,7 @@ link_directories(
 
 add_executable(itls.elf
 	main.c
+	path_rewrite.c
 )
 
 target_link_libraries(itls.elf
