@@ -1,13 +1,14 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.5)
 
 set(CMAKE_SYSTEM_NAME "Generic")
 set(CMAKE_C_COMPILER "arm-vita-eabi-gcc")
-set(CMAKE_CXX_COMPILER "arm-vita-eabi-g++")
 
-project(HENkaku)
+project(iTLSKernel C)
 
-set(CMAKE_C_FLAGS "-Wl,-q -Wall -O3 -std=gnu99")
-set(CMAKE_CXX_FLAGS "${CMAKE_C_FLAGS} -std=c++11 -fno-rtti -fno-exceptions")
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS ON)
+set(CMAKE_C_FLAGS "-Wl,-q -Wall -Wextra -O3")
 
 include_directories(
 )

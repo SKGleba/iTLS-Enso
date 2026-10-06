@@ -1,4 +1,5 @@
 import hashlib
+import os
 import pathlib
 import re
 import unittest
@@ -12,6 +13,15 @@ from tools.update_ca_bundle import (
 
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+SONY_SOURCE = pathlib.Path(
+    os.environ.get("ITLS_SONY_SOURCE", ROOT / "misc" / "sony_certs.cer")
+)
+MOZILLA_SOURCE = pathlib.Path(
+    os.environ.get("ITLS_MOZILLA_SOURCE", ROOT / "misc" / "mozilla_cacert.pem")
+)
+CA_BUNDLE = pathlib.Path(
+    os.environ.get("ITLS_CA_BUNDLE", ROOT / "misc" / "certs.cer")
+)
 PEM_RE = re.compile(
     rb"-----BEGIN CERTIFICATE-----.*?-----END CERTIFICATE-----",
     re.DOTALL,
@@ -21,7 +31,7 @@ ISRG_ROOT_X2_SHA256 = "69729b8e15a86efc177a57afb7171dfc64add28c2fca8cf1507e34453
 
 
 def repository_fixture_certificates(count: int) -> list[bytes]:
-    blocks = PEM_RE.findall((ROOT / "misc" / "certs.cer").read_bytes())
+    blocks = PEM_RE.findall(CA_BUNDLE.read_bytes())
     if len(blocks) < count:
         raise AssertionError(f"need {count} certificate fixtures, found {len(blocks)}")
     return [block + b"\n" for block in blocks[:count]]
@@ -59,20 +69,20 @@ class UpdateCaBundleTests(unittest.TestCase):
 
     def test_repository_bundle_is_reproducible(self) -> None:
         sources = (
-            ("Sony/Vita", (ROOT / "misc" / "sony_certs.cer").read_bytes()),
-            ("Mozilla/curl", (ROOT / "misc" / "mozilla_cacert.pem").read_bytes()),
+            ("Sony/Vita", SONY_SOURCE.read_bytes()),
+            ("Mozilla/curl", MOZILLA_SOURCE.read_bytes()),
         )
 
         generated = generate_bundle_bytes(sources)
 
-        self.assertEqual(generated, (ROOT / "misc" / "certs.cer").read_bytes())
+        self.assertEqual(generated, CA_BUNDLE.read_bytes())
 
     def test_repository_bundle_has_unique_certificates_and_preserves_sony_prefix(self) -> None:
         sony = parse_certificates(
-            "Sony/Vita", (ROOT / "misc" / "sony_certs.cer").read_bytes()
+            "Sony/Vita", SONY_SOURCE.read_bytes()
         )
         combined = parse_certificates(
-            "combined", (ROOT / "misc" / "certs.cer").read_bytes()
+            "combined", CA_BUNDLE.read_bytes()
         )
         fingerprints = [certificate.der_sha256 for certificate in combined]
 

@@ -64,7 +64,7 @@ void psvDebugScreenSetXY(int x, int y) {
 
 int g_log_mutex;
 
-void psvDebugScreenInit() {
+void psvDebugScreenInit(void) {
 	g_log_mutex = sceKernelCreateMutex("log_mutex", 0, 0, NULL);
 
 	SceKernelAllocMemBlockOpt opt = { 0 };
@@ -106,7 +106,8 @@ void psvDebugScreenClear(int bg_color)
 
 static void printTextScreen(const char * text)
 {
-	int c, i, j, l;
+	size_t c;
+	int i, j, l;
 	u8 *font;
 	Color *vram_ptr;
 	Color *vram;

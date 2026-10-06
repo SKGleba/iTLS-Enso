@@ -1,0 +1,78 @@
+#include "tai_config.h"
+
+#include <stdlib.h>
+#include <string.h>
+
+static const char config_block[] =
+    "# ITLS\n"
+    "*KERNEL\n"
+    "ur0:tai/itls.skprx\n\n";
+static const char config_marker[] = "# ITLS";
+static const char config_plugin[] = "ur0:tai/itls.skprx";
+
+static int line_equals(
+    const unsigned char *line,
+    size_t line_size,
+    const char *expected
+) {
+    size_t expected_size = strlen(expected);
+
+    while (
+        line_size > 0
+        && (line[line_size - 1] == '\n' || line[line_size - 1] == '\r')
+    ) {
+        line_size--;
+    }
+
+    return line_size == expected_size
+        && memcmp(line, expected, expected_size) == 0;
+}
+
+int itls_build_tai_config(
+    const unsigned char *input,
+    size_t input_size,
+    int enable,
+    unsigned char **output_data,
+    size_t *output_size
+) {
+    size_t block_size;
+    unsigned char *output;
+    size_t input_offset = 0;
+    size_t output_offset = 0;
+
+    if (input == NULL || output_data == NULL || output_size == NULL)
+        return ITLS_CONFIG_ERROR_INVALID_ARGUMENT;
+
+    block_size = enable ? strlen(config_block) : 0;
+    output = malloc(input_size + block_size + 1);
+    if (output == NULL)
+        return ITLS_CONFIG_ERROR_NO_MEMORY;
+
+    if (enable) {
+        memcpy(output, config_block, block_size);
+        output_offset = block_size;
+    }
+
+    while (input_offset < input_size) {
+        const unsigned char *line = input + input_offset;
+        const unsigned char *newline = memchr(line, '\n', input_size - input_offset);
+        size_t line_size = newline == NULL
+            ? input_size - input_offset
+            : (size_t)(newline - line) + 1;
+
+        if (
+            !line_equals(line, line_size, config_marker)
+            && !line_equals(line, line_size, config_plugin)
+        ) {
+            memcpy(output + output_offset, line, line_size);
+            output_offset += line_size;
+        }
+
+        input_offset += line_size;
+    }
+
+    output[output_offset] = '\0';
+    *output_data = output;
+    *output_size = output_offset;
+    return 0;
+}

@@ -81,7 +81,7 @@ static SceUID load_for_pid_patched(int pid, const char *path, uint32_t flags, in
 		ptr_to_four
 	);
 
-	if (load_dns_fix) {
+	if (load_dns_fix && result >= 0) {
 		SceUID dns_result = ksceKernelLoadStartModuleForPid(
 			pid,
 			new_modules[3],
@@ -102,6 +102,9 @@ static SceUID load_for_pid_patched(int pid, const char *path, uint32_t flags, in
 void _start() __attribute__ ((weak, alias ("module_start")));
 int module_start(SceSize argc, const void *args)
 {
+	(void)argc;
+	(void)args;
+
 	ksceDebugPrintf("itls module loaded\n");
 	if (add_replace_flags() > 0) {
 		int modid = ksceKernelSearchModuleByName("SceKernelModulemgr");
@@ -115,6 +118,9 @@ int module_start(SceSize argc, const void *args)
 
 int module_stop(SceSize argc, const void *args)
 {
+	(void)argc;
+	(void)args;
+
 	if (hk >= 0)
 		taiHookReleaseForKernel(hk, lfp_hook);
 	return SCE_KERNEL_STOP_SUCCESS;

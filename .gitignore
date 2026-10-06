@@ -1,0 +1,9 @@
+/build/
+/iTLS-Enso.elf
+/iTLS-Enso.velf
+/iTLS-Enso.vpk
+/eboot.bin
+/param.sfo
+*.o
+__pycache__/
+*.pyc
