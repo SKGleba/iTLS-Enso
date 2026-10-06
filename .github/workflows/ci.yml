@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  host-validation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host dependencies
+        run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libssl-dev
+      - name: Run host tests
+        run: make test
+
+  vitasdk-build:
+    runs-on: ubuntu-latest
+    container: vitasdk/vitasdk:latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build VPK
+        run: make clean && make -j2
+      - name: Verify VPK payloads
+        run: >-
+          python3 -c "import zipfile;
+          required={'eboot.bin','kernel.skprx','dnsfix.suprx','compat.suprx','lhttp.suprx','lssl.suprx','comm2.suprx','certs.cer'};
+          archive=set(zipfile.ZipFile('iTLS-Enso.vpk').namelist());
+          missing=required-archive;
+          assert not missing, f'missing VPK payloads: {sorted(missing)}'"
