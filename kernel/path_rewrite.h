@@ -1,7 +1,10 @@
 #ifndef ITLS_PATH_REWRITE_H
 #define ITLS_PATH_REWRITE_H
 
+#include <stddef.h>
 #include <stdint.h>
+
+#define ITLS_PATH_REWRITE_BUFFER_SIZE 128
 
 typedef enum ItlsReplacementModule {
     ITLS_REPLACEMENT_BROWSER,
@@ -25,7 +28,11 @@ ItlsReplacementState itls_build_replacement_state(
 
 const char *itls_select_replacement_path(
     const ItlsReplacementState *state,
-    const char *path
+    const char *path,
+    char *rewrite_buffer,
+    size_t rewrite_buffer_size
 );
+
+int itls_is_diagnostic_module_path(const char *path);
 
 #endif
