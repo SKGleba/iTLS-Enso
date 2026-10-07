@@ -4,7 +4,7 @@
 
 **Goal:** Make CA updates effective in the Vita browser, make installation/update/removal reliable and explicit, and restore reproducible current-VitaSDK builds.
 
-**Architecture:** Preserve Sony roots as a dedicated first source, append a pinned Mozilla source through a deterministic DER-fingerprint deduplicator, and validate the result with the same OpenSSL read/add loop used by `ScePsp2Compat`. Refactor runtime code around explicit actions and transactional file replacement, while extracting kernel path selection into a standard-C unit that can be host-tested.
+**Architecture:** Preserve the exact firmware-3.73 CA_LIST image as a fixed byte prefix, append a pinned Mozilla source through a deterministic DER-fingerprint deduplicator, validate the prefix against `libssl`'s fixed offset/length/raw-SHA-1 contract, and validate the appended roots with the OpenSSL read/add loop used by `ScePsp2Compat`. Refactor runtime code around explicit actions and transactional file replacement, while extracting kernel path selection into a standard-C unit that can be host-tested.
 
 **Tech Stack:** C99, VitaSDK, Python 3 standard library, OpenSSL host API, GNU Make, CMake, GitHub Actions, Docker.
 
@@ -12,13 +12,13 @@
 
 ## File map
 
-- `misc/sony_certs.cer`: preserved Vita/Sony CA source.
+- `misc/sony_certs.cer`: exact 99,264-byte firmware-3.73 CA_LIST image.
 - `misc/mozilla_cacert.pem`: pinned curl/Mozilla CA source.
-- `misc/certs.cer`: generated deduplicated combined bundle.
-- `tools/update_ca_bundle.py`: deterministic parser, deduplicator, and generator.
+- `misc/certs.cer`: generated fixed-prefix and deduplicated-appended combined bundle.
+- `tools/update_ca_bundle.py`: deterministic fixed-prefix copier, parser, deduplicator, and generator.
 - `tools/update_ca_bundle.sh`: explicit network refresh wrapper using `curl -q`.
-- `tests/test_update_ca_bundle.py`: unit and repository-consistency tests.
-- `tests/ca_loader_test.c`: exact OpenSSL loader-loop regression test.
+- `tests/test_update_ca_bundle.py`: generator, fixed-layout, and repository-consistency tests.
+- `tests/ca_loader_test.c`: appended-root OpenSSL loader-loop regression test.
 - `tests/test_kernel_path_rewrite.c`: host test for module path selection.
 - `kernel/path_rewrite.c`, `kernel/path_rewrite.h`: pure path-selection unit.
 - `kernel/main.c`: kernel hook integration and diagnostics.
@@ -126,7 +126,7 @@ Expected: failure because the path-rewrite unit does not exist.
 
 - [ ] **Step 1: Extract the authoritative Sony prefix**
 
-Split exactly the first 67 PEM certificates from `origin/master:misc/certs.cer`, preserving their PEM bytes and order, into `misc/sony_certs.cer`.
+Extract the complete 99,264-byte firmware-3.73 CA_LIST image from the v3.0.1 repository state into `misc/sony_certs.cer`. Do not derive it from current `origin/master`: that file replaced the expired DST Root CA X3 in place and shifted the fixed offsets expected by the bundled firmware-3.73 `libssl.suprx`.
 
 - [ ] **Step 2: Pin the current Mozilla source**
 
@@ -156,7 +156,7 @@ Reject unmatched begin/end markers, zero-certificate sources, non-ASCII PEM, and
 
 - [ ] **Step 5: Implement deterministic rendering**
 
-Render an ASCII header followed by normalized PEM blocks with one blank line between certificates and a final newline. Include source names, source certificate counts, skipped duplicate counts, and output count.
+Render the fixed Sony source first without changing a byte. Append the ASCII metadata header and normalized unique Mozilla PEM blocks after that prefix, with a final newline. Include source names, source certificate counts, skipped duplicate counts, and output count.
 
 - [ ] **Step 6: Add a command-line interface**
 
@@ -221,13 +221,15 @@ typedef struct ItlsReplacementState {
 
 const char *itls_select_replacement_path(
     const ItlsReplacementState *state,
-    const char *path
+    const char *path,
+    char *rewrite_buffer,
+    size_t rewrite_buffer_size
 );
 ```
 
 - [ ] **Step 2: Implement exact and suffix-safe matching**
 
-Use exact `strcmp` for system module paths. For the browser, require `length >= suffix_length`, compare the final suffix, and return the fixed replacement path. Never modify `path`.
+Use exact `strcmp` for system module paths. For Browser paths, require a non-empty colon-delimited prefix and the exact trailing `/webcore/ScePsp2Compat.suprx` path, preserve the opaque prefix, and append `/itls/ScePsp2Compat.suprx` in the bounded caller-provided buffer. Never modify `path`.
 
 - [ ] **Step 3: Run the path test to verify GREEN**
 
@@ -242,7 +244,7 @@ Expected: zero exit.
 
 - [ ] **Step 4: Integrate with the kernel hook**
 
-Replace inline string rewriting with the pure helper. Initialize hook IDs to `-1`, release only IDs `>= 0`, and log discovered replacement state and each changed path.
+Replace inline string rewriting with the bounded helper and a stack-local rewrite buffer. Initialize hook IDs to `-1`, release only IDs `>= 0`, and log discovered replacement state, requested and selected paths, and module-load results.
 
 - [ ] **Step 5: Add `path_rewrite.c` to the kernel target and commit**
 
@@ -449,4 +451,4 @@ git push -u devnoname120 fix/ca-bundle-loading
 
 - [ ] **Step 6: Open a superseding PR**
 
-Use `gh pr create --repo SKGleba/iTLS-Enso --base master --head devnoname120:fix/ca-bundle-loading`. Explain the duplicate-at-68 root cause, the effective 67-certificate store, TLS/cipher findings, transactional installer behavior, build fixes, test evidence, and that the PR supersedes #37.
+Use `gh pr create --repo SKGleba/iTLS-Enso --base master --head devnoname120:fix/ca-bundle-loading`. Explain that the regenerated bundle shifted and re-serialized the stock prefix, causing all 67 firmware-3.73 raw-PEM SHA-1 checks to fail; explain the independent duplicate-appended-root hazard, TLS/cipher findings, transactional installer behavior, build fixes, test evidence, and that the PR supersedes #37.

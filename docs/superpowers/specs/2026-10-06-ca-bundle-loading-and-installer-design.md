@@ -2,14 +2,16 @@
 
 ## Context
 
-The Vita browser loads `vs0:data/external/cert/CA_LIST.cer` through the OpenSSL-based `ScePsp2Compat` module. Its loader repeatedly calls `PEM_read_bio_X509_AUX` and `X509_STORE_add_cert`, but terminates on any `X509_STORE_add_cert` failure. OpenSSL reports an exact duplicate certificate as an add failure. The existing bundle and the bundle proposed in pull request #37 both contain a duplicate at certificate 68, after the same 67-certificate Sony prefix, so the browser never consumes the refreshed Mozilla roots.
+The bundled firmware-3.73 `libssl.suprx` does not discover the first 67 Sony roots by scanning arbitrary PEM input. Its CA loader seeks to hard-coded byte offsets in `vs0:data/external/cert/CA_LIST.cer`, reads hard-coded lengths, computes SHA-1 over each exact raw PEM slice including its line ending, and compares the result with an embedded 67-entry table. The matching firmware-3.73 CA_LIST is 99,264 bytes, begins its first PEM block at offset 20, and must remain byte-for-byte unchanged at the start of any replacement bundle. Re-serializing its PEM, changing CRLF to LF, removing its labels, or inserting a generated header before it invalidates those lookups.
+
+The browser stack also ingests appended roots through an OpenSSL store path. That path repeatedly calls `PEM_read_bio_X509_AUX` and `X509_STORE_add_cert`, and terminates on any add failure. OpenSSL reports an exact duplicate certificate as an add failure. Therefore the bundle has two independent invariants: preserve the stock 3.73 Sony prefix exactly, and omit duplicate DER certificates from the appended Mozilla section.
 
 Wikipedia requires TLS 1.2 and ECDHE-ECDSA AES-GCM. The bundled 3.73 browser compatibility module supports that protocol and cipher family. The remaining engineering problems are therefore trust-store ingestion, reliable installation, replacement-module activation, and build reproducibility.
 
 ## Goals
 
-1. Generate a deterministic Sony-first CA bundle with no duplicate DER certificates.
-2. Test the bundle using the same OpenSSL API sequence as the Vita browser loader.
+1. Generate a deterministic bundle with the exact firmware-3.73 CA_LIST image at byte zero and no duplicate DER certificates in the appended section.
+2. Test both loader contracts: fixed stock offsets/raw-slice digests and the appended-root OpenSSL API sequence.
 3. Make installation, updating, and removal explicit rather than state-dependent toggles.
 4. Prevent the installer from reporting success after a failed mount, copy, rename, write, or close.
 5. Make module replacement safer and observable, especially for the browser compatibility module.
@@ -44,13 +46,13 @@ This design selects the third approach: deterministic generation, exact loader v
 
 The generator will:
 
-1. Parse every PEM certificate from each source.
-2. Convert PEM to DER with Python's standard `ssl` module.
-3. Compute a SHA-256 fingerprint over DER.
-4. Keep the first occurrence of each fingerprint and discard later occurrences.
-5. Preserve all Sony certificates first and in their original byte order.
-6. Append unique Mozilla certificates in Mozilla order.
-7. Emit deterministic LF-terminated PEM with source metadata and a generated-file warning.
+1. Parse and validate every PEM certificate from each source.
+2. Compute a SHA-256 fingerprint over each DER certificate.
+3. Require the fixed Sony source to be internally duplicate-free.
+4. Copy the complete Sony source byte-for-byte at offset zero.
+5. Keep the first occurrence of every fingerprint and discard later Mozilla duplicates.
+6. Append source metadata after the fixed prefix, followed by unique Mozilla certificates in Mozilla order.
+7. Emit deterministic LF-terminated PEM only for the appended certificates; the Sony prefix retains its original labels, spaces, and CRLF layout.
 8. Report source counts, duplicate counts, and final count.
 
 The update workflow will download `https://curl.se/ca/cacert.pem` with `curl -q`, write the pinned Mozilla input, regenerate the combined file, and run all certificate tests. Network access is required only for an explicit update target, never for normal builds or tests.
@@ -70,7 +72,7 @@ The real bundle test will assert:
 
 - every input certificate is syntactically valid;
 - the generated output contains no duplicate DER fingerprints;
-- the output begins with every Sony certificate in exact order;
+- the output begins with the complete firmware-3.73 Sony CA_LIST byte-for-byte;
 - regenerating from the pinned inputs produces a byte-identical `misc/certs.cer`;
 - the OpenSSL loader loop adds every emitted certificate;
 - ISRG Root X1 and ISRG Root X2 are present in the generated output.
@@ -118,11 +120,14 @@ Path selection will be extracted into a small standard-C helper that is host-tes
 
 - reject null and empty paths;
 - compare exact paths for `libhttp`, `libssl`, and `np_commerce2`;
-- require `len >= suffix_len` before a suffix comparison;
-- return the fixed browser replacement path instead of mutating a `const char *` input buffer;
-- leave unrelated and prefix-collision paths unchanged.
+- recognize the exact trailing relative path `/webcore/ScePsp2Compat.suprx` independently of AppMgr's opaque mount alias;
+- preserve the complete colon-delimited prefix and replace only that trailing path with `/itls/ScePsp2Compat.suprx` through a bounded caller-provided buffer;
+- never mutate the module manager's `const char *` input buffer;
+- leave paths without a non-empty mount delimiter, unrelated paths, extra-suffix collisions, and undersized-buffer cases unchanged.
 
-The kernel plugin will initialize hook IDs to invalid values, release only installed hooks, and log enabled replacements and actual redirects through `ksceDebugPrintf`.
+Firmware-3.60 `SceAppMgr` generates these mount names from an `sd` prefix and pseudorandom bytes. Their visible characters change across Browser launches, so the hook treats everything before the exact relative module path as opaque and preserves it byte-for-byte.
+
+The kernel plugin will initialize hook IDs to invalid values, release only installed hooks, and persist enabled replacements, hook results, requested paths, selected paths, and load results in `ur0:tai/itls.log` while retaining `ksceDebugPrintf` output.
 
 ## Build system
 
@@ -155,6 +160,6 @@ The workflow will not download certificate data. It validates the pinned source 
 3. ISRG Root X1 and X2 are reachable in the generated file.
 4. A second CA install updates the active bundle rather than restoring/removing it.
 5. Any injected copy or rename failure produces an error and suppresses the success/reboot path.
-6. Browser redirection handles short and unrelated paths without out-of-bounds access or input mutation.
+6. Browser redirection preserves any opaque colon-delimited mount prefix while replacing only the exact `/webcore/ScePsp2Compat.suprx` tail, without out-of-bounds access or input mutation.
 7. The complete VPK builds with the current VitaSDK container.
 8. CI covers both host validation and VitaSDK packaging.

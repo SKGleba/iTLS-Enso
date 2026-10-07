@@ -62,7 +62,7 @@ misc/sony_certs.cer
 misc/mozilla_cacert.pem
 ```
 
-`misc/sony_certs.cer` contains the preserved Sony/Vita roots. `misc/mozilla_cacert.pem` contains the pinned Mozilla extract distributed by curl. `tools/update_ca_bundle.py` preserves Sony ordering, appends Mozilla roots in Mozilla order, and removes later certificates with the same DER SHA-256 fingerprint.
+`misc/sony_certs.cer` is the exact firmware-3.73 Sony CA_LIST image used by the bundled firmware-3.73 `libssl.suprx`. Its byte layout is part of the module's runtime data contract: `libssl` addresses the 67 built-in roots through fixed offsets and lengths, then checks the SHA-1 digest of each exact raw PEM slice, including its line endings. `misc/mozilla_cacert.pem` contains the pinned Mozilla extract distributed by curl. `tools/update_ca_bundle.py` copies the Sony image byte-for-byte at offset zero, appends its generated metadata and the Mozilla roots in Mozilla order, and removes later certificates with the same DER SHA-256 fingerprint.
 
 Validate the committed output without network access:
 
@@ -106,12 +106,14 @@ Reinstalling the VPK is not evidence that the active files were updated. Export 
 | `lssl.suprx` | `vs0:/data/external/itls/libssl.suprx` |
 | `certs.cer` | `vs0:/data/external/cert/CA_LIST.cer` |
 
-The kernel log reports the detected firmware, available replacement sets, and every module path redirect. A working browser replacement should produce messages resembling:
+The kernel plugin recreates `ur0:tai/itls.log` on each load. It records the detected firmware, replacement-file availability, hook-install result, the first intercepted module load, and every HTTP/SSL/browser compatibility module load with both its requested and selected path. A working browser replacement should produce messages resembling:
 
 ```text
-itls module loaded
+itls module start: build=3.3-diagnostic-3 ...
 itls firmware=0x03600000 replacements: browser=1 app_tls=1 commerce=1
-itls redirect: .../webcore/ScePsp2Compat.suprx -> vs0:/data/external/itls/ScePsp2Compat.suprx
+itls hook install: replacements=3 ... result=0x00000000
+itls load[42] request: ... path=<mount>:/webcore/ScePsp2Compat.suprx selected=<mount>:/itls/ScePsp2Compat.suprx
+itls load[42] result: result=0x0004002A ...
 ```
 
 For an unresolved HTTPS failure, capture the Vita's TLS ClientHello at the access point. TLS 1.0 or 1.1 indicates that the browser replacement is not active. TLS 1.2 without an expected ECDHE-ECDSA AES-GCM suite indicates that a different TLS module is running. A client alert after the server certificate shifts the investigation to certificate ingestion, the system clock, or TLS interception by the network. Retest with a correct clock and a non-intercepting network before changing the CA bundle again.
@@ -124,7 +126,7 @@ For an unresolved HTTPS failure, capture the Vita's TLS ClientHello at the acces
 - Version 3.3 makes CA generation duplicate-free, adds loader-accurate validation, and makes installation/update/removal explicit and transactional.
 - Version 3.3 also removes obsolete direct `.supr0` overrides and the legacy `ur0:tai/itls.suprx` entry during migration.
 - Current replacement modules originate from firmware 3.73.
-- The preserved Sony CA prefix originates from firmware 3.74-era system data; external roots come from the pinned Mozilla/curl bundle.
+- The fixed-layout Sony CA prefix is the firmware-3.73 CA_LIST paired with the bundled firmware-3.73 `libssl.suprx`; current external roots come from the pinned Mozilla/curl bundle and are appended without rewriting that prefix.
 
 ## Credits
 
