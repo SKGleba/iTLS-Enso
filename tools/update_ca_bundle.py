@@ -26,6 +26,7 @@ MOZILLA_DATE_RE = re.compile(
     rb"^## Certificate data from Mozilla as of:\s*(.+?)\s*$",
     re.MULTILINE,
 )
+TRAILING_ASCII_WHITESPACE = "".join(chr(value) for value in range(33))
 
 
 class BundleError(ValueError):
@@ -55,6 +56,8 @@ class BundleResult:
     certificates: tuple[Certificate, ...]
     sources: tuple[SourceStats, ...]
     duplicate_count: int
+    fixed_prefix: bytes
+    fixed_prefix_certificate_count: int
 
 
 def _canonical_pem(der: bytes) -> bytes:
@@ -129,10 +132,16 @@ def _validate_certificate_der(der: bytes) -> None:
 
 def _decode_pem_certificate(block: str) -> bytes:
     lines = block.splitlines()
-    if len(lines) < 3 or lines[0] != BEGIN_MARKER or lines[-1] != END_MARKER:
+    if (
+        len(lines) < 3
+        or lines[0].rstrip(TRAILING_ASCII_WHITESPACE) != BEGIN_MARKER
+        or lines[-1].rstrip(TRAILING_ASCII_WHITESPACE) != END_MARKER
+    ):
         raise ValueError("invalid PEM boundaries")
 
-    encoded = "".join(lines[1:-1])
+    encoded = "".join(
+        line.rstrip(TRAILING_ASCII_WHITESPACE) for line in lines[1:-1]
+    )
     try:
         der = base64.b64decode(encoded, validate=True)
     except (binascii.Error, ValueError) as error:
@@ -196,8 +205,10 @@ def build_bundle(sources: Sequence[tuple[str, bytes]]) -> BundleResult:
     seen: set[str] = set()
     output: list[Certificate] = []
     source_stats: list[SourceStats] = []
+    fixed_prefix = sources[0][1]
+    fixed_prefix_certificate_count = 0
 
-    for source_name, data in sources:
+    for source_number, (source_name, data) in enumerate(sources):
         parsed = parse_certificates(source_name, data)
         date_match = MOZILLA_DATE_RE.search(data)
         try:
@@ -213,13 +224,24 @@ def build_bundle(sources: Sequence[tuple[str, bytes]]) -> BundleResult:
         included = 0
         duplicates = 0
 
-        for certificate in parsed:
-            if certificate.der_sha256 in seen:
-                duplicates += 1
-                continue
-            seen.add(certificate.der_sha256)
-            output.append(certificate)
-            included += 1
+        if source_number == 0:
+            source_fingerprints = [certificate.der_sha256 for certificate in parsed]
+            if len(source_fingerprints) != len(set(source_fingerprints)):
+                raise BundleError(
+                    f"{source_name}: fixed prefix contains duplicate certificates"
+                )
+            seen.update(source_fingerprints)
+            output.extend(parsed)
+            included = len(parsed)
+            fixed_prefix_certificate_count = len(parsed)
+        else:
+            for certificate in parsed:
+                if certificate.der_sha256 in seen:
+                    duplicates += 1
+                    continue
+                seen.add(certificate.der_sha256)
+                output.append(certificate)
+                included += 1
 
         source_stats.append(
             SourceStats(
@@ -239,6 +261,8 @@ def build_bundle(sources: Sequence[tuple[str, bytes]]) -> BundleResult:
         certificates=tuple(output),
         sources=tuple(source_stats),
         duplicate_count=sum(stat.duplicate_count for stat in source_stats),
+        fixed_prefix=fixed_prefix,
+        fixed_prefix_certificate_count=fixed_prefix_certificate_count,
     )
 
 
@@ -278,9 +302,22 @@ def render_bundle(result: BundleResult) -> bytes:
     )
 
     certificates = b"\n".join(
-        certificate.pem.rstrip(b"\n") for certificate in result.certificates
+        certificate.pem.rstrip(b"\n")
+        for certificate in result.certificates[result.fixed_prefix_certificate_count :]
     )
-    return "\n".join(header).encode("ascii") + certificates + b"\n"
+    prefix_separator = (
+        b""
+        if result.fixed_prefix.endswith((b"\n", b"\r"))
+        else b"\n"
+    )
+    rendered = (
+        result.fixed_prefix
+        + prefix_separator
+        + "\n".join(header).encode("ascii")
+    )
+    if certificates:
+        rendered += certificates + b"\n"
+    return rendered
 
 
 def generate_bundle_bytes(sources: Sequence[tuple[str, bytes]]) -> bytes:

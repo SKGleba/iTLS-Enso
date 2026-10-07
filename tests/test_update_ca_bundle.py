@@ -31,6 +31,9 @@ PEM_RE = re.compile(
 )
 ISRG_ROOT_X1_SHA256 = "96bcec06264976f37460779acf28c5a7cfe8a3c0aae11a8ffcee05c0bddf08c6"
 ISRG_ROOT_X2_SHA256 = "69729b8e15a86efc177a57afb7171dfc64add28c2fca8cf1507e34453ccb1470"
+STOCK_373_CA_LIST_SHA256 = (
+    "14cafb9d12c1a604564e85326e057e459055c62d2b6f90add38dcb6e4592a396"
+)
 
 
 def repository_fixture_certificates(count: int) -> list[bytes]:
@@ -73,6 +76,30 @@ class UpdateCaBundleTests(unittest.TestCase):
         with self.assertRaisesRegex(BundleError, "unbalanced"):
             parse_certificates("broken", b"-----BEGIN CERTIFICATE-----\nAAAA\n")
 
+    def test_parse_accepts_trailing_marker_whitespace(self) -> None:
+        certificate = repository_fixture_certificates(1)[0]
+        source = certificate.replace(
+            b"-----BEGIN CERTIFICATE-----",
+            b"-----BEGIN CERTIFICATE----- \t",
+        ).replace(
+            b"-----END CERTIFICATE-----",
+            b"-----END CERTIFICATE-----  ",
+        )
+
+        parsed = parse_certificates("fixed-layout", source)
+
+        self.assertEqual(len(parsed), 1)
+
+    def test_parse_accepts_trailing_base64_whitespace(self) -> None:
+        lines = repository_fixture_certificates(1)[0].splitlines()
+        source = b"\n".join(
+            [lines[0], *(line + b" " for line in lines[1:-1]), lines[-1], b""]
+        )
+
+        parsed = parse_certificates("fixed-layout", source)
+
+        self.assertEqual(len(parsed), 1)
+
     def test_parse_rejects_non_base64_characters(self) -> None:
         with self.assertRaisesRegex(BundleError, "invalid certificate"):
             parse_certificates(
@@ -112,6 +139,28 @@ class UpdateCaBundleTests(unittest.TestCase):
 
         self.assertEqual(generate_bundle_bytes(sources), generate_bundle_bytes(sources))
 
+    def test_generation_preserves_first_source_bytes_as_fixed_prefix(self) -> None:
+        first, second, third = repository_fixture_certificates(3)
+        fixed_source = (
+            b"# Fixed root 1\r\n"
+            + first.replace(b"\n", b"\r\n")
+            + b"# Fixed root 2\r\n"
+            + second.replace(b"\n", b"\r\n")
+        )
+
+        generated = generate_bundle_bytes(
+            (("Sony/Vita", fixed_source), ("Mozilla/curl", third))
+        )
+
+        self.assertEqual(generated[: len(fixed_source)], fixed_source)
+
+    def test_repository_sony_source_matches_fixed_373_libssl_layout(self) -> None:
+        source = SONY_SOURCE.read_bytes()
+
+        self.assertEqual(hashlib.sha256(source).hexdigest(), STOCK_373_CA_LIST_SHA256)
+        self.assertEqual(source.find(b"-----BEGIN CERTIFICATE-----"), 20)
+        self.assertEqual(len(PEM_RE.findall(source)), 67)
+
     def test_repository_bundle_is_reproducible(self) -> None:
         sources = (
             ("Sony/Vita", SONY_SOURCE.read_bytes()),
@@ -123,14 +172,13 @@ class UpdateCaBundleTests(unittest.TestCase):
         self.assertEqual(generated, CA_BUNDLE.read_bytes())
 
     def test_repository_bundle_has_unique_certificates_and_preserves_sony_prefix(self) -> None:
-        sony = parse_certificates(
-            "Sony/Vita", SONY_SOURCE.read_bytes()
-        )
-        combined = parse_certificates(
-            "combined", CA_BUNDLE.read_bytes()
-        )
+        sony_bytes = SONY_SOURCE.read_bytes()
+        combined_bytes = CA_BUNDLE.read_bytes()
+        sony = parse_certificates("Sony/Vita", sony_bytes)
+        combined = parse_certificates("combined", combined_bytes)
         fingerprints = [certificate.der_sha256 for certificate in combined]
 
+        self.assertEqual(combined_bytes[: len(sony_bytes)], sony_bytes)
         self.assertEqual(len(sony), 67)
         self.assertEqual(
             fingerprints[: len(sony)],
