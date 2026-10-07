@@ -1,36 +1,139 @@
 # iTLS-Enso
-Adds TLS v1.2 to devices with enso installed.
 
-# How-To 
-1) Install the provided VPK file.
+Adds TLS 1.2 support to PlayStation Vita systems by loading newer system TLS modules and an updated CA bundle.
 
-2) Start the app, select "Install the full iTLS package" and wait until it finishes.
-   - You may want to install only the new root certs, to do it select "Install the iTLS CA certs".
+## Install or update
 
-3) Reboot.
+1. Install the VPK.
+2. Start iTLS-Enso.
+3. Select **Install/update the full iTLS package**.
+4. Reboot when prompted.
 
-# FAQ
-- Can I use it without enso?
-  - Yes for the browser patch only.
-- Where can I find the CA certs?
-  - vs0:/data/external/cert/CA_LIST.cer
-- Can I delete the bubble after iTLS is installed?
-  - Yes, the un/installer is independent of the plugin.
+The menu also exposes explicit component-level install/update, remove, and CA restore actions. An action no longer changes from install to uninstall based on hidden filesystem state.
 
-# Notes
-- Since version 3.0 iTLS also patches app-side TLS stuff.
-- Since version 3.2 iTLS also patches the NP server link on firmware 3.60.
-- Since version 3.2.1 iTLS bundles external CA certs because SCE didnt update theirs.
-- Updating CA certs may fix some problems with web sites, apps (like Netflix), etc.
-- For any help/serious issue DM me on [Twitter](twitter.com/skgleba).
+Reinstalling the VPK updates only the files under `ux0:app`. It does **not** update the active files under `vs0:` or `ur0:`. Start the application and select the relevant install/update action after installing a newer VPK.
 
-# Credits
+The first CA installation preserves the original system bundle as:
+
+```text
+vs0:/data/external/cert/CA_LIST.cer_old
+```
+
+Later CA updates replace only the active iTLS bundle. **Restore the original CA certificate bundle** copies the backup back into service and removes the backup after a successful restore.
+
+## Component actions
+
+The application provides explicit actions for:
+
+- the complete package;
+- the kernel module-redirection plugin;
+- the browser compatibility module;
+- the in-app HTTP/SSL modules;
+- the CA certificate bundle;
+- restoring or removing each installed component.
+
+Every copy is written to a temporary file and size-checked before activation. Existing files are retained as rollback files until activation succeeds. A failed mount, read, write, sync, close, rename, or verification operation is shown with its stage and Vita error code; failed operations do not enter the success/reboot path.
+
+## Building
+
+A current VitaSDK installation is required.
+
+```sh
+make clean
+make -j2
+```
+
+The top-level build compiles the application, kernel plugin, and 3.60 DNS compatibility plugin before packaging `iTLS-Enso.vpk`.
+
+Host validation requires Python 3.10 or newer, a C compiler, `pkg-config`, and OpenSSL development headers:
+
+```sh
+make test
+```
+
+The host tests cover CA generation, Vita-compatible CA ingestion semantics, kernel module-path selection, transactional file replacement, and taiHEN configuration rewriting.
+
+## CA bundle maintenance
+
+The generated bundle has two pinned inputs:
+
+```text
+misc/sony_certs.cer
+misc/mozilla_cacert.pem
+```
+
+`misc/sony_certs.cer` is the exact firmware-3.73 Sony CA_LIST image used by the bundled firmware-3.73 `libssl.suprx`. Its byte layout is part of the module's runtime data contract: `libssl` addresses the 67 built-in roots through fixed offsets and lengths, then checks the SHA-1 digest of each exact raw PEM slice, including its line endings. `misc/mozilla_cacert.pem` contains the pinned Mozilla extract distributed by curl. `tools/update_ca_bundle.py` copies the Sony image byte-for-byte at offset zero, appends its generated metadata and the Mozilla roots in Mozilla order, and removes later certificates with the same DER SHA-256 fingerprint.
+
+Validate the committed output without network access:
+
+```sh
+make check-certs
+```
+
+Refresh the pinned Mozilla source and regenerate the bundle:
+
+```sh
+make update-certs
+```
+
+The refresh script downloads from curl with `curl -q`, validates the candidate bundle with the host loader test, then replaces the pinned source and generated output. Normal builds and CI do not download certificates.
+
+## FAQ
+
+### Can I use it without Enso?
+
+The installer and CA-bundle action can run without Enso. Persistent browser and app-module replacement requires the kernel redirection plugin to load during boot, so those replacements require Enso or an equivalent persistent taiHEN setup.
+
+### Where is the active CA bundle?
+
+```text
+vs0:/data/external/cert/CA_LIST.cer
+```
+
+### Can I delete the bubble after installation?
+
+Yes. The installed modules and CA bundle are independent of the installer application. Keep the VPK available if you expect to update or remove components later.
+
+## Troubleshooting
+
+Reinstalling the VPK is not evidence that the active files were updated. Export the installed files with VitaShell and compare their SHA-256 hashes with the corresponding VPK payloads:
+
+| VPK payload | Installed path |
+|---|---|
+| `kernel.skprx` | `ur0:tai/itls.skprx` |
+| `compat.suprx` | `vs0:/data/external/itls/ScePsp2Compat.suprx` |
+| `lhttp.suprx` | `vs0:/data/external/itls/libhttp.suprx` |
+| `lssl.suprx` | `vs0:/data/external/itls/libssl.suprx` |
+| `certs.cer` | `vs0:/data/external/cert/CA_LIST.cer` |
+
+The kernel plugin recreates `ur0:tai/itls.log` on each load. It records the detected firmware, replacement-file availability, hook-install result, the first intercepted module load, and every HTTP/SSL/browser compatibility module load with both its requested and selected path. A working browser replacement should produce messages resembling:
+
+```text
+itls module start: build=3.3-diagnostic-3 ...
+itls firmware=0x03600000 replacements: browser=1 app_tls=1 commerce=1
+itls hook install: replacements=3 ... result=0x00000000
+itls load[42] request: ... path=<mount>:/webcore/ScePsp2Compat.suprx selected=<mount>:/itls/ScePsp2Compat.suprx
+itls load[42] result: result=0x0004002A ...
+```
+
+For an unresolved HTTPS failure, capture the Vita's TLS ClientHello at the access point. TLS 1.0 or 1.1 indicates that the browser replacement is not active. TLS 1.2 without an expected ECDHE-ECDSA AES-GCM suite indicates that a different TLS module is running. A client alert after the server certificate shifts the investigation to certificate ingestion, the system clock, or TLS interception by the network. Retest with a correct clock and a non-intercepting network before changing the CA bundle again.
+
+## Notes
+
+- Since version 3.0, iTLS also replaces app-side TLS modules.
+- Since version 3.2, iTLS patches the NP server hostname on firmware 3.60.
+- Since version 3.2.1, iTLS includes external CA roots because Sony stopped updating the system bundle.
+- Version 3.3 makes CA generation duplicate-free, adds loader-accurate validation, and makes installation/update/removal explicit and transactional.
+- Version 3.3 also removes obsolete direct `.supr0` overrides and the legacy `ur0:tai/itls.suprx` entry during migration.
+- Current replacement modules originate from firmware 3.73.
+- The fixed-layout Sony CA prefix is the firmware-3.73 CA_LIST paired with the bundled firmware-3.73 `libssl.suprx`; current external roots come from the pinned Mozilla/curl bundle and are appended without rewriting that prefix.
+
+## Credits
+
 Thanks to:
+
 - Team Molecule
 - Testers from the HenKaku Discord server
 - Cuevavirus for the 3.60 NP server fix
-- CreepNT for the vshIoMount fix
-- olokos for the new external cert bundle
-
-## CURRENT MODULES ORIGIN FW: 3.73
-## CURRENT CAs ORIGIN FW: 3.74 + external
+- CreepNT for the `vshIoMount` fix
+- olokos for the external CA bundle work

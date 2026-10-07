@@ -5,7 +5,7 @@ typedef unsigned u32;
 typedef u32 Color;
 
 // allocates memory for framebuffer and initializes it
-void psvDebugScreenInit();
+void psvDebugScreenInit(void);
 
 // clears screen with a given color
 void psvDebugScreenClear(int bg_color);
@@ -22,7 +22,7 @@ Color psvDebugScreenSetBgColor(Color color);
 void *psvDebugScreenGetVram();
 int psvDebugScreenGetX();
 int psvDebugScreenGetY();
-void psvDebugScreenSetXY();
+void psvDebugScreenSetXY(int x, int y);
 
 enum {
 	COLOR_CYAN = 0xFFFFFF00,
